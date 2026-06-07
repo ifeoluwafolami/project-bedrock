@@ -1,0 +1,10 @@
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+*.tfvars
+*.zip
+tfplan
+plan_output.txt
+grading.json
+.DS_Store
