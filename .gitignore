@@ -6,6 +6,6 @@ terraform.tfstate.backup
 *.zip
 tfplan
 plan_output.txt
-grading.json
+# grading.json
 .DS_Store
-SUBMISSION_DOCUMENT.md
+SUBMISSION_DOCUMENT.mdCREDENTIALS_FOR_GOOGLE_DOC.txt
