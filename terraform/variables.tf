@@ -21,3 +21,5 @@ variable "eks_cluster_version" {
   type        = string
   default     = "1.34"
 }
+
+# CI/CD plan evidence trigger - no infrastructure change.
