@@ -9,3 +9,5 @@ This folder contains screenshots and proof of successful deployment:
 5. alb-created.png - kubectl get ingress output
 6. app-working.png - Browser screenshot of working app
 
+
+CI/CD verification run.
