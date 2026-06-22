@@ -1,29 +1,34 @@
-# Project Bedrock — InnovateMart EKS Deployment
+# Project Bedrock - InnovateMart EKS Deployment
 
-**AltSchool Cloud Engineering Karatu 2025 | Student: ALT/SOE/025/3333**
+AltSchool Cloud Engineering Karatu 2025
+Student ID: `ALT/SOE/025/3333`
 
 ## Architecture
 
-- VPC: `project-bedrock-vpc` (us-east-1, 2 AZs, public + private subnets)
-- EKS: `project-bedrock-cluster` (v1.31, nodes in private subnets)
-- Data: RDS MySQL, RDS PostgreSQL, DynamoDB (all in private subnets)
-- Ingress: AWS Load Balancer Controller → ALB
-- Observability: CloudWatch (control plane + containers via CloudWatch Observability addon)
-- Serverless: S3 `bedrock-assets-alt-soe-025-3333` → Lambda `bedrock-asset-processor`
-- All resources tagged: `Project: karatu-2025-capstone`
+- Region: `us-east-1`
+- VPC: `project-bedrock-vpc` with public and private subnets across two AZs
+- EKS: `project-bedrock-cluster` on Kubernetes `1.34`
+- Namespace: `retail-app`
+- Data layer: RDS MySQL, RDS PostgreSQL, and DynamoDB
+- In-cluster services: Redis and RabbitMQ
+- Ingress: AWS Load Balancer Controller and ALB Ingress
+- Observability: EKS control plane logs and CloudWatch Observability add-on
+- Serverless: S3 `bedrock-assets-alt-soe-025-3333` triggers Lambda `bedrock-asset-processor`
+- Tagging: `Project: karatu-2025-capstone`
 
 ## Prerequisites
 
 ```bash
-aws --version        # >= 2.x
-terraform -v         # >= 1.0
+aws --version
+terraform -v
 kubectl version --client
 helm version
+jq --version
 ```
 
-## Deployment Steps
+## Remote State
 
-### 1. Create Terraform remote state bucket (one-time)
+Create the S3 backend bucket once before `terraform init`:
 
 ```bash
 aws s3api create-bucket \
@@ -35,7 +40,7 @@ aws s3api put-bucket-versioning \
   --versioning-configuration Status=Enabled
 ```
 
-### 2. Deploy infrastructure
+## Deploy Infrastructure
 
 ```bash
 cd terraform
@@ -44,110 +49,147 @@ terraform plan
 terraform apply
 ```
 
-EKS + RDS take ~15-20 minutes. Go get coffee.
-
-### 3. Configure kubectl
+Then configure `kubectl`:
 
 ```bash
 aws eks update-kubeconfig \
   --name project-bedrock-cluster \
   --region us-east-1
-kubectl get nodes
 ```
 
-### 4. Install AWS Load Balancer Controller
+## Install AWS Load Balancer Controller
 
 ```bash
+ALB_ROLE_ARN="$(terraform -chdir=terraform output -raw alb_controller_role_arn)"
+
 helm repo add eks https://aws.github.io/eks-charts
 helm repo update
-
-# Get ALB controller role ARN from terraform output
-ALB_ROLE_ARN=$(cd terraform && terraform output -raw alb_controller_role_arn 2>/dev/null || echo "")
 
 helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
   -n kube-system \
   --set clusterName=project-bedrock-cluster \
   --set serviceAccount.create=true \
   --set serviceAccount.name=aws-load-balancer-controller \
-  --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=$ALB_ROLE_ARN
+  --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="$ALB_ROLE_ARN"
 ```
 
-### 5. Deploy the retail store app
+## Deploy Retail Store App
+
+Use the committed Helm deployment script:
 
 ```bash
-# Create namespace
-kubectl apply -f kubernetes/ingress.yaml
-
-# Deploy the app (AWS's pre-built manifest — deploys all services)
-kubectl apply -f https://github.com/aws-containers/retail-store-sample-app/releases/latest/download/kubernetes.yaml -n retail-app
-
-# Wait for everything to be ready
-kubectl wait --for=condition=available deployments --all -n retail-app --timeout=300s
+./scripts/deploy-retail-app.sh
 ```
 
-### 6. Get the application URL
+The script deploys the public ECR Helm charts into `retail-app` and injects live Terraform outputs at deploy time:
+
+- `catalog` uses Amazon RDS MySQL.
+- `orders` uses Amazon RDS PostgreSQL and in-cluster RabbitMQ.
+- `carts` uses Amazon DynamoDB through an IRSA role.
+- `checkout` uses in-cluster Redis.
+- `ui` exposes the store through an ALB Ingress.
+
+Get the application URL:
 
 ```bash
-kubectl get ingress -n retail-app
-# Use the ADDRESS field — this is your ALB DNS name
+kubectl get ingress ui -n retail-app
 ```
 
-### 7. Generate grading output
+Copy the `ADDRESS` value into the submission document as:
 
-```bash
-cd terraform
-terraform output -json > ../grading.json
-cat ../grading.json
+```text
+Application URL: http://ADDRESS_FROM_INGRESS
 ```
 
 ## CI/CD Pipeline
 
-- **Pull Request** → triggers `terraform plan`, posts output as PR comment
-- **Merge to main** → triggers `terraform apply`
+The workflow in `.github/workflows/terraform.yml` does the required automation:
 
-### Setup GitHub secrets
+- Pull request to `main`: runs `terraform plan` and posts the plan as a PR comment.
+- Push or merge to `main`: runs `terraform apply -auto-approve`.
 
-In your GitHub repo → Settings → Secrets → Actions, add:
-- `AWS_ACCESS_KEY_ID` — your AWS access key
-- `AWS_SECRET_ACCESS_KEY` — your AWS secret key
+Configure these GitHub Actions secrets before opening the PR:
 
-## Grading Credentials (bedrock-dev-view)
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
 
-After `terraform apply`, run:
+After pushing, capture screenshots or links showing:
+
+- The PR plan workflow completed successfully.
+- The Terraform plan appeared as a PR comment.
+- The merge-to-main apply workflow completed successfully.
+
+## Grading Credentials
+
+After `terraform apply`, copy fresh values into the Google Doc:
+
+```bash
+terraform -chdir=terraform output dev_view_access_key_id
+terraform -chdir=terraform output -raw dev_view_secret_access_key
+terraform -chdir=terraform output -raw dev_view_console_password
+terraform -chdir=terraform output dev_view_console_url
+```
+
+Do not commit the secret access key or console password to the public repository.
+
+## Verify Developer Access
+
+```bash
+aws configure --profile bedrock-dev-view
+
+aws eks update-kubeconfig \
+  --name project-bedrock-cluster \
+  --region us-east-1 \
+  --profile bedrock-dev-view \
+  --alias bedrock-dev-view
+
+kubectl --context bedrock-dev-view get pods -n retail-app
+kubectl --context bedrock-dev-view delete pod "$(kubectl get pod -n retail-app -o jsonpath='{.items[0].metadata.name}')" -n retail-app
+```
+
+Expected result:
+
+- `get pods` succeeds.
+- `delete pod` fails with `Forbidden`.
+
+## Verify S3 to Lambda
+
+```bash
+echo "test" > /tmp/bedrock-test-image.txt
+
+aws s3 cp /tmp/bedrock-test-image.txt \
+  "s3://$(terraform -chdir=terraform output -raw assets_bucket_name)/bedrock-test-image.txt" \
+  --profile bedrock-dev-view
+
+aws logs tail /aws/lambda/bedrock-asset-processor \
+  --region us-east-1 \
+  --since 15m
+```
+
+Expected log line:
+
+```text
+Image received: bedrock-test-image.txt
+```
+
+## Grading Output
+
+The assignment requires this file at the repository root:
 
 ```bash
 cd terraform
-terraform output dev_view_access_key_id
-terraform output -raw dev_view_secret_access_key
-terraform output -raw dev_view_console_password
-terraform output dev_view_console_url
+terraform output -json > ../grading.json
 ```
 
-## Verify developer access
+Inspect `grading.json` before committing. If it contains sensitive helper outputs, keep only the required grading keys in the public repository:
 
-```bash
-# Configure a separate AWS profile for the dev user
-aws configure --profile bedrock-dev
+- `cluster_endpoint`
+- `cluster_name`
+- `region`
+- `vpc_id`
+- `assets_bucket_name`
 
-# This should work:
-kubectl get pods -n retail-app --as=bedrock-dev-view
-
-# This should fail with Forbidden:
-kubectl delete pod <any-pod> -n retail-app --as=bedrock-dev-view
-```
-
-## Test the Lambda trigger
-
-```bash
-# Upload a test file using the dev user credentials
-aws s3 cp test-image.jpg s3://bedrock-assets-alt-soe-025-3333/ \
-  --profile bedrock-dev
-
-# Check Lambda logs
-aws logs tail /aws/lambda/bedrock-asset-processor --follow
-```
-
-## Teardown (save AWS costs!)
+## Teardown
 
 ```bash
 cd terraform

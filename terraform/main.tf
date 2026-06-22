@@ -67,22 +67,27 @@ module "eks" {
   vpc_id             = module.networking.vpc_id
   private_subnet_ids = module.networking.private_subnet_ids
   public_subnet_ids  = module.networking.public_subnet_ids
+  cluster_version    = var.eks_cluster_version
   project_tag        = var.project_tag
 }
 
 module "data" {
   source             = "./modules/data"
   vpc_id             = module.networking.vpc_id
+  vpc_cidr           = module.networking.vpc_cidr
   private_subnet_ids = module.networking.private_subnet_ids
   eks_node_sg_id     = module.eks.node_security_group_id
   project_tag        = var.project_tag
 }
 
 module "security" {
-  source       = "./modules/security"
-  cluster_name = module.eks.cluster_name
-  assets_bucket_arn = module.serverless.assets_bucket_arn
-  project_tag  = var.project_tag
+  source             = "./modules/security"
+  cluster_name       = module.eks.cluster_name
+  assets_bucket_arn  = module.serverless.assets_bucket_arn
+  dynamodb_table_arn = module.data.dynamodb_table_arn
+  oidc_provider_arn  = module.eks.oidc_provider_arn
+  oidc_provider_url  = module.eks.oidc_provider_url
+  project_tag        = var.project_tag
 }
 
 module "serverless" {

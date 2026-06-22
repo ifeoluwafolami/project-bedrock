@@ -82,8 +82,8 @@ resource "aws_security_group" "node" {
 
 # ── EKS Cluster ───────────────────────────────────────────────────────────────
 resource "aws_eks_cluster" "main" {
-  name     = "project-bedrock-cluster"
-  version  = "1.31"
+  name    = "project-bedrock-cluster"
+  version = var.cluster_version
   access_config {
     authentication_mode = "API_AND_CONFIG_MAP"
   }
@@ -112,12 +112,12 @@ resource "aws_eks_node_group" "main" {
   node_group_name = "project-bedrock-nodes"
   node_role_arn   = aws_iam_role.node.arn
   subnet_ids      = var.private_subnet_ids
-  instance_types  = ["t3.small", "t3.medium", "t2.medium"]
+  instance_types  = ["t3.medium"]
 
   scaling_config {
-    desired_size = 2
-    max_size     = 3
-    min_size     = 1
+    desired_size = 3
+    max_size     = 4
+    min_size     = 2
   }
 
   update_config { max_unavailable = 1 }

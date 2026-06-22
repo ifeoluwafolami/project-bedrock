@@ -48,6 +48,26 @@ resource "aws_security_group" "rds" {
   tags = { Name = "project-bedrock-rds-sg", Project = var.project_tag }
 }
 
+resource "aws_security_group_rule" "rds_mysql_from_vpc" {
+  type              = "ingress"
+  security_group_id = aws_security_group.rds.id
+  from_port         = 3306
+  to_port           = 3306
+  protocol          = "tcp"
+  cidr_blocks       = [var.vpc_cidr]
+  description       = "MySQL from EKS pod/node CIDR"
+}
+
+resource "aws_security_group_rule" "rds_postgres_from_vpc" {
+  type              = "ingress"
+  security_group_id = aws_security_group.rds.id
+  from_port         = 5432
+  to_port           = 5432
+  protocol          = "tcp"
+  cidr_blocks       = [var.vpc_cidr]
+  description       = "Postgres from EKS pod/node CIDR"
+}
+
 # ── RDS MySQL (catalog service) ───────────────────────────────────────────────
 resource "aws_db_instance" "mysql" {
   identifier        = "project-bedrock-mysql"
@@ -101,6 +121,17 @@ resource "aws_dynamodb_table" "carts" {
   attribute {
     name = "id"
     type = "S"
+  }
+
+  attribute {
+    name = "customerId"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "idx_global_customerId"
+    hash_key        = "customerId"
+    projection_type = "ALL"
   }
 
   tags = { Name = "project-bedrock-carts", Project = var.project_tag }

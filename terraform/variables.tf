@@ -15,3 +15,9 @@ variable "student_id" {
   type        = string
   default     = "alt-soe-025-3333"
 }
+
+variable "eks_cluster_version" {
+  description = "EKS Kubernetes version. Use -var during stepwise upgrades if AWS rejects skipping minor versions."
+  type        = string
+  default     = "1.34"
+}

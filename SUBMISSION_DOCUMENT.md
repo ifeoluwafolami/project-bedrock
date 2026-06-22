@@ -8,7 +8,7 @@ GitHub Repository: https://github.com/ifeoluwafolami/project-bedrock
 This capstone project demonstrates the successful deployment of a production-grade, highly available e-commerce application (InnovateMart) on Amazon EKS using Infrastructure as Code (Terraform). The architecture implements AWS best practices including:
 
 - Multi-AZ VPC with public and private subnets
-- EKS cluster v1.31 with managed node groups in private subnets
+- EKS cluster v1.34 with managed node groups in private subnets
 - RDS MySQL and PostgreSQL databases for data persistence
 - DynamoDB for session/cart management
 - Application Load Balancer for ingress traffic management
@@ -75,7 +75,7 @@ Project Goals
 Infrastructure Components
 1. Compute Layer (EKS)
 Cluster Name: project-bedrock-cluster
-Kubernetes Version: 1.31
+Kubernetes Version: 1.34
 Node Group: project-bedrock-nodes
 Instance Type: t3.medium
 Scaling: Min: 1, Desired: 2, Max: 3
@@ -204,17 +204,19 @@ Deployment Process
 
 
 ### Phase 5: Application Deployment
-1. **Namespace Creation**
+1. **Application Deployment**
   ```bash
-  kubectl create namespace retail-app
+  ./scripts/deploy-retail-app.sh
   ```
-2. **Application Deployment**
+  This deploys the Retail Store Helm charts into the required `retail-app` namespace and configures the managed data layer:
+  - catalog -> Amazon RDS MySQL
+  - orders -> Amazon RDS PostgreSQL
+  - carts -> Amazon DynamoDB with IRSA
+  - checkout -> in-cluster Redis
+  - orders messaging -> in-cluster RabbitMQ
+2. **Ingress Verification**
   ```bash
-  kubectl apply -f https://github.com/aws-containers/retail-store-sample-app/releases/latest/download/kubernetes.yaml
-  ```
-3. **Ingress Configuration**
-  ```bash
-  kubectl apply -f kubernetes/ingress.yaml
+  kubectl get ingress ui -n retail-app
   ```
 4. **Verification**
   ```bash
@@ -239,6 +241,31 @@ postgres_endpoint = "project-bedrock-postgres.xxxxx.us-east-1.rds.amazonaws.com:
 vpc_id = "vpc-072bf34dba25a549a"
 ```
 
+Application URL
+
+```text
+Application URL: REPLACE_WITH_ALB_URL_FROM_kubectl_get_ingress
+```
+
+Grading Credentials
+
+```text
+IAM User: bedrock-dev-view
+Console URL: REPLACE_WITH_terraform_output_dev_view_console_url
+Console Username: bedrock-dev-view
+Console Password: REPLACE_WITH_terraform_output_raw_dev_view_console_password
+Access Key ID: REPLACE_WITH_terraform_output_dev_view_access_key_id
+Secret Access Key: REPLACE_WITH_terraform_output_raw_dev_view_secret_access_key
+```
+
+CI/CD Evidence
+
+```text
+Pull Request Plan Run: REPLACE_WITH_GITHUB_ACTIONS_PR_PLAN_URL
+Pull Request Plan Comment: REPLACE_WITH_PR_COMMENT_URL_OR_SCREENSHOT
+Merge to Main Apply Run: REPLACE_WITH_GITHUB_ACTIONS_APPLY_URL
+```
+
 Evidence & Screenshots
 1. Terraform Output Success
 ![Terraform Apply Complete](./evidence/terraform-apply-complete.png)
@@ -246,7 +273,7 @@ Evidence & Screenshots
 
 ### 2. EKS Cluster Status
 ![EKS Cluster Active](./evidence/eks-cluster-active.png)
-*AWS Console showing cluster status: ACTIVE with version 1.31*
+*AWS Console showing cluster status: ACTIVE with version 1.34*
 
 ### 3. Node Group Status
 ![Node Group Active](./evidence/node-group-active.png)

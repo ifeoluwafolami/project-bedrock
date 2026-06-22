@@ -56,3 +56,56 @@ resource "aws_eks_access_policy_association" "dev_view" {
     namespaces = ["retail-app"]
   }
 }
+
+# ── IRSA role: carts service → DynamoDB table ────────────────────────────────
+data "aws_iam_policy_document" "carts_dynamodb_assume" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    effect  = "Allow"
+
+    condition {
+      test     = "StringEquals"
+      variable = "${replace(var.oidc_provider_url, "https://", "")}:sub"
+      values   = ["system:serviceaccount:retail-app:carts"]
+    }
+
+    principals {
+      identifiers = [var.oidc_provider_arn]
+      type        = "Federated"
+    }
+  }
+}
+
+resource "aws_iam_role" "carts_dynamodb" {
+  name               = "project-bedrock-carts-dynamodb"
+  assume_role_policy = data.aws_iam_policy_document.carts_dynamodb_assume.json
+  tags               = { Project = var.project_tag }
+}
+
+resource "aws_iam_role_policy" "carts_dynamodb" {
+  name = "project-bedrock-carts-dynamodb"
+  role = aws_iam_role.carts_dynamodb.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "dynamodb:BatchGetItem",
+        "dynamodb:BatchWriteItem",
+        "dynamodb:ConditionCheckItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:DescribeTable",
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:Query",
+        "dynamodb:Scan",
+        "dynamodb:UpdateItem"
+      ]
+      Resource = [
+        var.dynamodb_table_arn,
+        "${var.dynamodb_table_arn}/index/*"
+      ]
+    }]
+  })
+}

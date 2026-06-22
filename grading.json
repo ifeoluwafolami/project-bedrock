@@ -1,9 +1,4 @@
 {
-  "assets_bucket_name": {
-    "sensitive": false,
-    "type": "string",
-    "value": "bedrock-assets-alt-soe-025-3333"
-  },
   "cluster_endpoint": {
     "sensitive": false,
     "type": "string",
@@ -23,5 +18,10 @@
     "sensitive": false,
     "type": "string",
     "value": "vpc-072bf34dba25a549a"
+  },
+  "assets_bucket_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "bedrock-assets-alt-soe-025-3333"
   }
 }
